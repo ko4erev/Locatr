@@ -24,7 +24,7 @@ class FlickrFetchr {
         .appendQueryParameter("api_key", API_KEY)
         .appendQueryParameter("format", "json")
         .appendQueryParameter("nojsoncallback", "1")
-        .appendQueryParameter("extras", "url_s")
+        .appendQueryParameter("extras", "url_s,geo")
         .build()
 
     fun getUrlBytes(urlSpec: String): ByteArray {
@@ -117,6 +117,8 @@ class FlickrFetchr {
             }
             item.mUrl = (photoJsonObject.getString("url_s"))
             item.mOwner = (photoJsonObject.getString("owner"))
+            item.mLat = (photoJsonObject.getDouble("latitude"))
+            item.mLon = (photoJsonObject.getDouble("longitude"))
             items.add(item)
         }
     }

@@ -9,6 +9,8 @@ class GalleryItem {
     var mId: String? = null
     var mUrl: String? = null
     var mOwner: String? = null
+    var mLat: Double? = null
+    var mLon: Double? = null
 
     fun getPhotoPageUri(): Uri {
         return Uri.parse("https://www.flickr.com/photos/")

@@ -7,23 +7,30 @@ import android.content.pm.PackageManager
 import android.location.Location
 import android.os.AsyncTask
 import android.os.Bundle
-import android.support.v4.app.Fragment
 import android.support.v4.content.ContextCompat
 import android.util.Log
 import android.view.*
-import android.widget.ImageView
 import com.google.android.gms.common.api.GoogleApiClient
 import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationServices
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import com.google.android.gms.maps.CameraUpdateFactory
+import com.google.android.gms.maps.SupportMapFragment
 import java.io.IOException
+import com.google.android.gms.maps.GoogleMap
+import com.google.android.gms.maps.model.BitmapDescriptorFactory
+import com.google.android.gms.maps.model.LatLng
+import com.google.android.gms.maps.model.LatLngBounds
+import com.google.android.gms.maps.model.MarkerOptions
 
 
-class LocatrFragment : Fragment() {
-    private var mImageView: ImageView? = null
+class LocatrFragment : SupportMapFragment() {
     private lateinit var mClient: GoogleApiClient
-
+    private var mMap: GoogleMap? = null
+    private var mMapImage: Bitmap? = null
+    private var mMapItem: GalleryItem? = null
+    private var mCurrentLocation: Location? = null
 
     companion object {
         private val LOCATION_PERMISSIONS =
@@ -34,12 +41,6 @@ class LocatrFragment : Fragment() {
         fun newInstance(): LocatrFragment {
             return LocatrFragment()
         }
-    }
-
-    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
-        var v = inflater.inflate(R.layout.fragment_locatr, container, false)
-        mImageView = v.findViewById(R.id.image)
-        return v
     }
 
     override fun onStart() {
@@ -66,6 +67,10 @@ class LocatrFragment : Fragment() {
                 override fun onConnectionSuspended(i: Int) {}
             })
             .build()
+        getMapAsync { googleMap ->
+            mMap = googleMap
+            updateUI()
+        }
     }
 
     override fun onCreateOptionsMenu(menu: Menu?, inflater: MenuInflater?) {
@@ -73,6 +78,7 @@ class LocatrFragment : Fragment() {
         inflater?.inflate(R.menu.fragment_locatr, menu)
 
         val searchItem = menu?.findItem(R.id.action_locate)
+        var t = mClient.isConnected
         searchItem?.isEnabled = mClient.isConnected
     }
 
@@ -112,6 +118,7 @@ class LocatrFragment : Fragment() {
         activity?.let {
             mFusedLocationClient?.lastLocation?.addOnSuccessListener(it) { location ->
                 Log.i(TAG, "Got a fix: $location")
+                SearchTask().execute(location)
             }
         }
     }
@@ -121,11 +128,42 @@ class LocatrFragment : Fragment() {
         return result == PackageManager.PERMISSION_GRANTED
     }
 
-    private inner class SearchTask : AsyncTask<Location, Void, Void>() {
+    private fun updateUI() {
+        if (mMap == null || mMapImage == null) {
+            return
+        }
+        val itemPoint =
+            mMapItem?.mLat?.let { mMapItem?.mLon?.let { it1 -> LatLng(it, it1) } }
+        val myPoint =
+            mCurrentLocation?.latitude?.let { mCurrentLocation?.longitude?.let { it1 -> LatLng(it, it1) } }
+
+        val itemBitmap = BitmapDescriptorFactory.fromBitmap(mMapImage)
+        val itemMarker = itemPoint?.let {
+            MarkerOptions()
+                .position(it)
+                .icon(itemBitmap)
+        }
+        val myMarker = myPoint?.let { it1 -> MarkerOptions().position(it1) }
+        mMap?.clear()
+        mMap?.addMarker(itemMarker)
+        mMap?.addMarker(myMarker)
+
+        val bounds = LatLngBounds.Builder()
+            .include(itemPoint)
+            .include(myPoint)
+            .build()
+        val margin = resources.getDimensionPixelSize(R.dimen.map_inset_margin)
+        val update = CameraUpdateFactory.newLatLngBounds(bounds, margin)
+        mMap?.animateCamera(update)
+    }
+
+    private inner class SearchTask : AsyncTask<Location?, Void, Void>() {
         private var mGalleryItem: GalleryItem? = null
         private var mBitmap: Bitmap? = null
+        private var mLocation: Location? = null
 
         override fun doInBackground(vararg params: Location?): Void? {
+            mLocation = params[0]
             val fetchr = FlickrFetchr()
             val items = params[0]?.let { fetchr.searchPhotos(it) }
             if (items?.size == 0) {
@@ -143,8 +181,12 @@ class LocatrFragment : Fragment() {
         }
 
 
-        override fun onPostExecute(result: Void) {
-            mImageView?.setImageBitmap(mBitmap)
+        override fun onPostExecute(result: Void?) {
+            mMapImage = mBitmap
+            mMapItem = mGalleryItem
+            mCurrentLocation = mLocation
+
+            updateUI()
         }
     }
 }
